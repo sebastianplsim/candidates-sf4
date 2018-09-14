@@ -1,0 +1,18 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Candidate Submission{% endblock %}
+
+{% block stylesheets %}
+    <link rel="stylesheet" href="{{ asset('build/app.css') }}">
+{% endblock %}
+
+{% block javascripts %}
+    <script src="{{ asset('build/app.js') }}"></script>
+    <script>
+        window.startApp('{{ enterUrl }}', '{{ positions|json_encode|raw }}');
+    </script>
+{% endblock %}
+
+{% block body %}
+    <div id="app"></div>
+{% endblock %}

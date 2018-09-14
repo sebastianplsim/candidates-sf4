@@ -1,0 +1,150 @@
+service: candidates
+
+provider:
+  name: aws
+  runtime: nodejs6.10
+  region: eu-west-3
+
+plugins:
+  - serverless-s3-assets
+  - serverless-domain-manager
+
+package:
+  exclude:
+    - '*'
+    - '**'
+  include:
+    - handler.js
+    - bref.php
+    - '.bref/**'
+    - 'src/**'
+    - 'vendor/**'
+    - 'composer.json'
+    - 'composer.lock'
+    - 'bin/**'
+    - 'config/**'
+    - 'templates/**'
+    - 'var/cache/prod/**'
+
+functions:
+  main:
+    handler: handler.handle
+    timeout: 20
+    events:
+      - http: 'ANY /'
+      - http: 'ANY {proxy+}'
+    vpc:
+      securityGroupIds:
+        - "Fn::GetAtt": ServerlessSecurityGroup.GroupId
+      subnetIds:
+        - Ref: ServerlessSubnetA
+        - Ref: ServerlessSubnetB
+        - Ref: ServerlessSubnetC
+    environment:
+      APP_ENV: 'prod'
+      APP_DEBUG: '0'
+      DATABASE_URL:
+        "Fn::Join": ["", ['mysql://${env:MYSQL_USER}:${env:MYSQL_PASSWORD}@', { "Fn::GetAtt": [ ServerlessRDSCluster, Endpoint.Address ] }, '/${env:MYSQL_TABLE}' ] ]
+      ASSET_BUCKET_ENDPOINT:
+        "Fn::Join": ["", ["https://", { "Fn::GetAtt": [ S3Assets, DomainName ] } ] ]
+      ADMIN_USERNAME: ${env:ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${env:ADMIN_PASSWORD}
+
+custom:
+  customDomain:
+    domainName: ${env:DOMAIN_NAME}
+    basePath: ''
+    stage: ${self:provider.stage}
+    createRoute53Record: true
+  s3Assets:
+    public/bundles:
+      bucket: ${env:ASSET_BUCKET_NAME}/bundles
+      isPublic: true
+      cacheTime: 300
+      templates:
+        cacheTime: 20
+
+resources:
+  Resources:
+    S3Assets:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${env:ASSET_BUCKET_NAME}
+        CorsConfiguration:
+          CorsRules:
+            - AllowedHeaders:
+                - '*'
+              AllowedMethods:
+                - GET
+              AllowedOrigins:
+                - '*'
+    ServerlessVPC:
+      Type: AWS::EC2::VPC
+      Properties:
+        CidrBlock: "10.0.0.0/16"
+    ServerlessSubnetA:
+      DependsOn: ServerlessVPC
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId:
+          Ref: ServerlessVPC
+        AvailabilityZone: ${self:provider.region}a
+        CidrBlock: "10.0.0.0/24"
+    ServerlessSubnetB:
+      DependsOn: ServerlessVPC
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId:
+          Ref: ServerlessVPC
+        AvailabilityZone: ${self:provider.region}b
+        CidrBlock: "10.0.1.0/24"
+    ServerlessSubnetC:
+      DependsOn: ServerlessVPC
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId:
+          Ref: ServerlessVPC
+        AvailabilityZone: ${self:provider.region}c
+        CidrBlock: "10.0.2.0/24"
+    ServerlessSecurityGroup:
+      DependsOn: ServerlessVPC
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: SecurityGroup for Serverless Functions
+        VpcId:
+          Ref: ServerlessVPC
+    ServerlessStorageSecurityGroup:
+      DependsOn: ServerlessVPC
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Ingress for RDS Instance
+        VpcId:
+          Ref: ServerlessVPC
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '3306'
+          ToPort: '3306'
+          SourceSecurityGroupId:
+            Ref: ServerlessSecurityGroup
+    ServerlessRDSSubnetGroup:
+      Type: AWS::RDS::DBSubnetGroup
+      Properties:
+        DBSubnetGroupDescription: "RDS Subnet Group"
+        SubnetIds:
+        - Ref: ServerlessSubnetA
+        - Ref: ServerlessSubnetB
+        - Ref: ServerlessSubnetC
+    ServerlessRDSCluster:
+      DependsOn: ServerlessStorageSecurityGroup
+      Type: AWS::RDS::DBInstance
+      Properties:
+        Engine: MariaDB
+        DBName: ${env:MYSQL_TABLE}
+        MasterUsername: ${env:MYSQL_USER}
+        MasterUserPassword: ${env:MYSQL_PASSWORD}
+        DBInstanceClass: db.t2.micro
+        AllocatedStorage: 10
+        VPCSecurityGroups:
+        - "Fn::GetAtt": ServerlessStorageSecurityGroup.GroupId
+        DBSubnetGroupName:
+          Ref: ServerlessRDSSubnetGroup

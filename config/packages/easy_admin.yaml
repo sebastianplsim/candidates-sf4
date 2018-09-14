@@ -1,0 +1,32 @@
+easy_admin:
+    site_name: 'Candidates'
+    entities:
+        Position:
+            class: App\Entity\Position
+            label: 'Positions'
+            list:
+                fields: ['id', 'name']
+                sort: 'name'
+            form:
+                fields: ['name']
+            show:
+                fields: ['id', 'name']
+        Candidate:
+            class: App\Entity\Candidate
+            label: 'Candidates'
+            list:
+                fields:
+                    - id
+                    - name
+                    - email
+                    - { property: 'available', type: 'boolean' }
+                    - { property: 'contactable', type: 'boolean' }
+                    - position
+            form:
+                fields:
+                    - name
+                    - { property: 'email', type: 'email' }
+                    - position
+                    - { property: 'github', type: 'url', label: 'GitHub' }
+                    - { property: 'available', type: 'checkbox', label: 'Available to work in the next few months' }
+                    - { property: 'contactable', type: 'checkbox', label: 'Keep in touch about jobs' }

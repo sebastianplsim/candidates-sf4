@@ -1,0 +1,5 @@
+serve:
+	docker-compose run --service-ports php bin/console server:run 0.0.0.0:8000
+
+shell:
+	docker-compose run --service-ports php bash
